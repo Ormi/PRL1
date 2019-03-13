@@ -53,6 +53,8 @@ int main(int argc, char *argv[]) {
 
     	int num;
     	int c;
+    	int recievedData;
+    	int sendCounter = 0;
     	vector<int> numbers;
         ifstream inputFile;
         inputFile.open(fileName.c_str()); 
@@ -78,56 +80,169 @@ int main(int argc, char *argv[]) {
 	        display_vector(numbers);
 	    }
         //
-
        
-        int proc = 1;
+        int cpuCount = processesCount-leavesProcesses;
+        int proc = cpuCount;
         for (int j = 0; j < sumOfNumbers; j++) {
         	MPI_Send(&numbers[j], 1, MPI_INT, proc, 0, MPI_COMM_WORLD);
-        	if (proc == leavesProcesses) {
-        		proc = 1;
+        	sendCounter++;
+        	if (proc == processesCount-1) {
+        		proc = cpuCount;
         	} else {
         		proc++;
         	}
         }
-        c=EOS;
-        for (int z = 1; z <= leavesProcesses; z++) {
-	        MPI_Send(&c, 1, MPI_INT, z, 0, MPI_COMM_WORLD);	 
-        }
 
+        cout << "\nProcess " << processId << " sent " << sendCounter << " numbers\n======================================\n";
+        c=EOS;
+        for (int z = cpuCount; z <= processesCount; z++) {
+	        MPI_Send(&c, 1, MPI_INT, z-1, 0, MPI_COMM_WORLD);	 
+        }
+    	vector<int> numbersBucketSlave;        
+        bool next = true;
+    	int  cCount = 0;	
+        int recievedData2; 
+        bool leftCount = true;
+    	bool rightCount = true;
+		while(next) {
+			if (leftCount) {
+		    	MPI_Recv(&recievedData2, 1, MPI_INT, (processId*2)+2, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		    }
+		    if (rightCount) {
+		    	MPI_Recv(&recievedData, 1, MPI_INT, (processId*2)+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		    }
+		    if(DEBUG) {
+		    	printf("Process %d received number %d %d\n", processId, recievedData, recievedData2);   
+		    }		    
+		    if(recievedData != EOS) {		    
+		    	numbersBucketSlave.push_back(recievedData);
+		    } else {
+		    	if(cCount == 1) {
+		    		next = false;
+		    		cCount = 0;
+		    		leftCount = true;
+		    	} else {
+		    		cCount++;
+		    		leftCount = false;
+		    	}
+		    }	
+		    if(recievedData2 != EOS) {		    
+		    	numbersBucketSlave.push_back(recievedData2);		    	
+		    } else {
+		    	if(cCount == 1) {
+		    		next = false;
+		    		cCount = 0;
+		    		leftCount = true;
+		    	} else {
+		    		cCount++;
+		    		leftCount = false;
+		    	}
+		    }			
+		}
+	    sort(numbersBucketSlave.begin(), numbersBucketSlave.end());
+        cout << "========FNISHED============\n";
+        display_vector(numbersBucketSlave);
     } else {
     	//SLAVES
     	vector<int> numbersBucketSlave;
     	bool next = true;
+    	int c = EOS;    
+    	int  cCount = 0;	
+    	bool leftCount = true;
+    	bool rightCount = true;
         int recievedData;
-        while(next) {
+        int recievedData2;        
+        bool amILeavesProc;
+
+        if(processId >= ((processesCount/2))) {
+        	amILeavesProc = true;
+        } else {
+        	amILeavesProc = false;
+        }
+
+        //Leaves
+        while(next && amILeavesProc) {
 		    MPI_Recv(&recievedData, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		    if(DEBUG) {
-		    	printf("Process %d received number %d from process 0\n", processId, recievedData);   
-		    }
-		    if(recievedData==EOS) {
+		    // if(DEBUG) {
+		    // 	printf("Process %d received number %d from process 0\n", processId, recievedData);   
+		    // }
+		    if(recievedData != EOS) {
+		    	numbersBucketSlave.push_back(recievedData);
+		    } else {
 		    	next = false;
-		    } 
-		    numbersBucketSlave.push_back(recievedData);
+		    }
 		}	
-		// Control prints
-		if(DEBUG) {
-			cout << "Displayed vector:\n";
-			display_vector(numbersBucketSlave);
-			cout << "I am done\n";
+
+		//NotLeaves
+		while(next && !amILeavesProc) {
+			if (leftCount) {
+		    	MPI_Recv(&recievedData2, 1, MPI_INT, (processId*2)+2, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		    }
+		    if (rightCount) {
+		    	MPI_Recv(&recievedData, 1, MPI_INT, (processId*2)+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		    }
+		    if(DEBUG) {
+		    	printf("Process %d received number %d %d\n", processId, recievedData, recievedData2);   
+		    }		    
+		    if(recievedData != EOS) {		    
+		    	numbersBucketSlave.push_back(recievedData);
+		    } else {
+		    	if(cCount == 1) {
+		    		next = false;
+		    		cCount = 0;
+		    		leftCount = true;
+		    	} else {
+		    		cCount++;
+		    		leftCount = false;
+		    	}
+		    }	
+		    if(recievedData2 != EOS) {		    
+		    	numbersBucketSlave.push_back(recievedData2);		    	
+		    } else {
+		    	if(cCount == 1) {
+		    		next = false;
+		    		cCount = 0;
+		    		leftCount = true;
+		    	} else {
+		    		cCount++;
+		    		leftCount = false;
+		    	}
+		    }			    		
 		}
-		//
 
-		sort(numbersBucketSlave.begin(), numbersBucketSlave.end());
+	    sort(numbersBucketSlave.begin(), numbersBucketSlave.end());
 
-		// Control prints
 		if(DEBUG) {
-			cout << "Displayed vector sorted:\n";
+			cout << "I am process " << processId << " and i have Displayed vector:\n";
 			display_vector(numbersBucketSlave);
-			cout << "I am done sorted\n";
-		}		
-		//    
-    }
+			cout << "\n";
+		}
+	    // cout << "Process " << processId << " sending data\n";
+		if(DEBUG) {
+			cout << "I am process " << processId << " and i have numbers: " << numbersBucketSlave.size() << "\n";
+		}	    
+		for (int i = 0; i < numbersBucketSlave.size(); ++i)
+		{
+			if(processId % 2 == 0) {
+				cout << processId << " MPI SEND " << numbersBucketSlave[i] << " " << (processId/2)-1 << "\n";
+	       		MPI_Send(&numbersBucketSlave[i], 1, MPI_INT, (processId/2)-1, 0, MPI_COMM_WORLD);
+	       	}
+	       	if(processId % 2 == 1) {
+				cout << processId << " MPI SEND " << numbersBucketSlave[i] << " " << (processId/2) << "\n";
+				MPI_Send(&numbersBucketSlave[i], 1, MPI_INT, (processId/2), 0, MPI_COMM_WORLD);
+	       	}
+		}
 
+		if(processId % 2 == 0) {
+			cout << processId << " MPI SEND " << c << " " << (processId/2)-1 << "\n";
+       		MPI_Send(&c, 1, MPI_INT, (processId/2)-1, 0, MPI_COMM_WORLD);
+       	}
+       	if(processId % 2 == 1) {
+			cout << processId << " MPI SEND " << c << " " << (processId/2) << "\n";
+			MPI_Send(&c, 1, MPI_INT, (processId/2), 0, MPI_COMM_WORLD);
+       	}
+ 
+    }
 
     // releive all alocated processes
     MPI_Finalize();
