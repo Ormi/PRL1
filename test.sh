@@ -35,8 +35,6 @@ mpic++ --prefix /usr/local/share/OpenMPI -o xormos00 xormos00.cpp
 #number of processes neeed to be equal to number of numbers + 1
 echo $numbers
 
-float=1.23
-int=${float%.*}
 # get the logarith of 2 of array length
 z=$(echo "l($numbers)/l(2)" | bc -l)
 zz=${z%.*}
